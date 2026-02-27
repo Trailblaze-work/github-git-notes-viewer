@@ -127,7 +127,7 @@ async function fetchNoteContent(owner, repo, noteRef, commitSha) {
       try {
         const url = `https://raw.githubusercontent.com/${owner}/${repo}/${path}?${cacheBust}`;
         const res = await fetch(url, {
-          headers: { Authorization: `token ${token}` },
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) return await res.text();
       } catch {
@@ -205,7 +205,7 @@ async function discoverNoteRefs(owner, repo) {
   try {
     const headers = { Accept: "application/vnd.github+json" };
     const token = await getStoredToken();
-    if (token) headers.Authorization = `token ${token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
 
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/git/matching-refs/notes`,
