@@ -283,10 +283,10 @@ function buildSandboxedHtml(bodyHtml) {
 <head>
 <meta charset="utf-8">
 <style>
-body {
+html, body {
   margin: 0;
   padding: 0;
-  background: transparent !important;
+  background: ${v.bgDefault};
   color: ${v.fgDefault};
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
     Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
@@ -414,7 +414,7 @@ function createSandboxedIframe(content, format) {
   iframe.sandbox = "allow-scripts";
   iframe.srcdoc = srcdoc;
   iframe.style.cssText =
-    "width:100%;border:none;overflow:hidden;display:block;min-height:40px;";
+    "width:100%;border:none;display:block;min-height:40px;";
   iframe.title = "Git note content";
 
   return iframe;
@@ -455,7 +455,7 @@ function showLoading(container) {
   `;
 }
 
-const COLLAPSE_HEIGHT = 300; // px — notes taller than this get collapsed
+const COLLAPSE_HEIGHT = 500; // px — notes taller than this get collapsed
 
 function showNotes(container, notes) {
   if (!notes || notes.length === 0) {

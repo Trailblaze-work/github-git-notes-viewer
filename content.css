@@ -141,13 +141,16 @@
 /* Collapsible body wrapper */
 .ghn-body-wrapper {
   position: relative;
-  max-height: 300px;
+}
+
+.ghn-body-wrapper.ghn-truncated {
+  max-height: 500px;
   overflow: hidden;
-  transition: max-height 0.3s ease;
 }
 
 .ghn-body-wrapper.ghn-expanded {
   max-height: none;
+  overflow: visible;
 }
 
 .ghn-body-wrapper.ghn-truncated::after {
@@ -156,7 +159,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  height: 80px;
   background: linear-gradient(
     to bottom,
     transparent,
