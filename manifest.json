@@ -13,7 +13,7 @@
   "content_scripts": [
     {
       "matches": ["https://github.com/*/*/commit/*"],
-      "js": ["content.js"],
+      "js": ["lib/marked.min.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }

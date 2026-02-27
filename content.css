@@ -31,6 +31,18 @@
   flex-shrink: 0;
 }
 
+.ghn-format-badge {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--fgColor-muted, #8b949e);
+  background: var(--bgColor-default, #0d1117);
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--borderColor-default, #30363d);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .ghn-ref {
   font-weight: 400;
   font-size: 12px;
@@ -39,6 +51,34 @@
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
     "Liberation Mono", monospace;
   margin-left: auto;
+}
+
+.ghn-toggle-raw {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: -4px 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fgColor-muted, #8b949e);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ghn-toggle-raw:hover {
+  color: var(--fgColor-default, #e6edf3);
+  background: var(--bgColor-default, #0d1117);
+  border-color: var(--borderColor-default, #30363d);
+}
+
+.ghn-toggle-raw.ghn-active {
+  color: var(--fgColor-accent, #58a6ff);
+  background: rgba(88, 166, 255, 0.1);
+  border-color: rgba(88, 166, 255, 0.4);
 }
 
 .ghn-body {
@@ -96,4 +136,31 @@
 
 .ghn-settings-link:hover {
   text-decoration: underline;
+}
+
+/* Rendered markdown */
+.ghn-markdown {
+  font-size: 14px;
+  padding: 0 !important;
+}
+
+.ghn-markdown h2:first-child,
+.ghn-markdown h3:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.ghn-markdown table {
+  font-size: 13px;
+}
+
+/* JSON formatting */
+.ghn-json {
+  font-size: 12px;
+}
+
+/* YAML highlighting */
+.ghn-yaml-key {
+  color: var(--fgColor-accent, #58a6ff);
 }
