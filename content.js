@@ -239,51 +239,148 @@ function detectFormat(content) {
   return "plain";
 }
 
-function renderContent(content, format) {
+// --- Sandboxed rendering ---
+// All rendered content goes into a sandboxed iframe to prevent XSS.
+// sandbox="allow-same-origin" means NO scripts execute, but parent can
+// access the iframe DOM for height auto-sizing.
+
+function getGitHubStylesheetLinks() {
+  return [...document.querySelectorAll('link[rel="stylesheet"]')]
+    .map((link) => link.href)
+    .filter((href) => href.includes("github"))
+    .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">`)
+    .join("\n");
+}
+
+function getThemeAttributes() {
+  const root = document.documentElement;
+  return [
+    "data-color-mode",
+    "data-light-theme",
+    "data-dark-theme",
+  ]
+    .map((attr) => {
+      const val = root.getAttribute(attr);
+      return val ? `${attr}="${escapeHtml(val)}"` : "";
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildSandboxedHtml(bodyHtml) {
+  const styleLinks = getGitHubStylesheetLinks();
+  const themeAttrs = getThemeAttributes();
+  return `<!doctype html>
+<html ${themeAttrs}>
+<head>
+<meta charset="utf-8">
+${styleLinks}
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  overflow: hidden;
+}
+.markdown-body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.markdown-body h2:first-child,
+.markdown-body h3:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.markdown-body table { font-size: 13px; }
+pre.ghn-plain {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fgColor-default, #e6edf3);
+}
+.ghn-yaml-key { color: var(--fgColor-accent, #58a6ff); }
+</style>
+</head>
+<body>${bodyHtml}</body>
+</html>`;
+}
+
+function renderContentToHtml(content, format) {
   switch (format) {
     case "markdown":
-      return renderMarkdown(content);
-    case "json":
-      return renderJson(content);
-    case "yaml":
-      return renderYaml(content);
-    default:
-      return `<pre class="ghn-content">${escapeHtml(content)}</pre>`;
-  }
-}
-
-function renderMarkdown(content) {
-  if (typeof marked === "undefined") {
-    return `<pre class="ghn-content">${escapeHtml(content)}</pre>`;
-  }
-  // Use GitHub's own markdown-body class for consistent styling
-  const html = marked.parse(content, { breaks: false, gfm: true });
-  return `<div class="markdown-body ghn-markdown">${html}</div>`;
-}
-
-function renderJson(content) {
-  try {
-    const formatted = JSON.stringify(JSON.parse(content.trim()), null, 2);
-    return `<pre class="ghn-content ghn-json">${escapeHtml(formatted)}</pre>`;
-  } catch {
-    return `<pre class="ghn-content">${escapeHtml(content)}</pre>`;
-  }
-}
-
-function renderYaml(content) {
-  // Syntax-highlight YAML: keys in one color, values in another
-  const lines = escapeHtml(content).split("\n");
-  const highlighted = lines
-    .map((line) => {
-      // Match key: value pattern
-      const m = line.match(/^(\s*)([\w.-]+)(:)(\s.*)?$/);
-      if (m) {
-        return `${m[1]}<span class="ghn-yaml-key">${m[2]}</span>${m[3]}${m[4] || ""}`;
+      if (typeof marked !== "undefined") {
+        const html = marked.parse(content, { breaks: true, gfm: true });
+        return `<div class="markdown-body">${html}</div>`;
       }
-      return line;
-    })
-    .join("\n");
-  return `<pre class="ghn-content ghn-yaml">${highlighted}</pre>`;
+      return `<pre class="ghn-plain">${escapeHtml(content)}</pre>`;
+
+    case "json":
+      try {
+        const formatted = JSON.stringify(JSON.parse(content.trim()), null, 2);
+        return `<pre class="ghn-plain">${escapeHtml(formatted)}</pre>`;
+      } catch {
+        return `<pre class="ghn-plain">${escapeHtml(content)}</pre>`;
+      }
+
+    case "yaml": {
+      const lines = escapeHtml(content).split("\n");
+      const highlighted = lines
+        .map((line) => {
+          const m = line.match(/^(\s*)([\w.-]+)(:)(\s.*)?$/);
+          if (m) {
+            return `${m[1]}<span class="ghn-yaml-key">${m[2]}</span>${m[3]}${m[4] || ""}`;
+          }
+          return line;
+        })
+        .join("\n");
+      return `<pre class="ghn-plain">${highlighted}</pre>`;
+    }
+
+    default:
+      return `<pre class="ghn-plain">${escapeHtml(content)}</pre>`;
+  }
+}
+
+function createSandboxedIframe(content, format) {
+  const bodyHtml = renderContentToHtml(content, format);
+  const srcdoc = buildSandboxedHtml(bodyHtml);
+
+  const iframe = document.createElement("iframe");
+  iframe.sandbox = "allow-same-origin"; // NO scripts, parent can measure height
+  iframe.srcdoc = srcdoc;
+  iframe.style.cssText =
+    "width:100%;border:none;overflow:hidden;display:block;min-height:40px;";
+  iframe.title = "Git note content";
+
+  // Auto-size height once loaded
+  iframe.addEventListener("load", () => {
+    autoSizeIframe(iframe);
+    // Watch for dynamic resizes (e.g. stylesheet loading)
+    try {
+      const obs = new ResizeObserver(() => autoSizeIframe(iframe));
+      obs.observe(iframe.contentDocument.body);
+    } catch {
+      // Fallback: re-measure after stylesheets likely loaded
+      setTimeout(() => autoSizeIframe(iframe), 500);
+    }
+  });
+
+  return iframe;
+}
+
+function autoSizeIframe(iframe) {
+  try {
+    const doc = iframe.contentDocument;
+    if (doc && doc.body) {
+      iframe.style.height = doc.body.scrollHeight + "px";
+    }
+  } catch {
+    // Cross-origin access denied — shouldn't happen with allow-same-origin
+  }
 }
 
 // --- UI rendering ---
@@ -308,41 +405,65 @@ function showNotes(container, notes) {
     return;
   }
 
-  container.innerHTML = notes
-    .map((note) => {
-      const format = detectFormat(note.content);
-      const rendered = renderContent(note.content, format);
-      const raw = `<pre class="ghn-content">${escapeHtml(note.content)}</pre>`;
-      const formatLabel = format !== "plain" ? format : "";
+  container.innerHTML = "";
 
-      return `
-    <div class="ghn-box" data-format="${format}">
-      <div class="ghn-header">
-        <span class="ghn-icon">${noteIcon()}</span>
-        <span class="ghn-title">Git Notes</span>
-        ${formatLabel ? `<span class="ghn-format-badge">${formatLabel}</span>` : ""}
-        <span class="ghn-ref">${escapeHtml(note.ref)}</span>
-        ${format !== "plain" ? `<button class="ghn-toggle-raw" title="Toggle raw view">${codeIcon()}</button>` : ""}
-      </div>
-      <div class="ghn-body ghn-rendered">${rendered}</div>
-      <div class="ghn-body ghn-raw" hidden>${raw}</div>
-    </div>
-  `;
-    })
-    .join("");
+  for (const note of notes) {
+    const format = detectFormat(note.content);
+    const formatLabel = format !== "plain" ? format : "";
 
-  // Attach toggle handlers
-  container.querySelectorAll(".ghn-toggle-raw").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const box = btn.closest(".ghn-box");
-      const rendered = box.querySelector(".ghn-rendered");
-      const raw = box.querySelector(".ghn-raw");
-      const showingRaw = !raw.hidden;
-      rendered.hidden = !showingRaw;
-      raw.hidden = showingRaw;
-      btn.classList.toggle("ghn-active", !showingRaw);
-    });
-  });
+    const box = document.createElement("div");
+    box.className = "ghn-box";
+    box.dataset.format = format;
+
+    // Header
+    const header = document.createElement("div");
+    header.className = "ghn-header";
+    header.innerHTML = `
+      <span class="ghn-icon">${noteIcon()}</span>
+      <span class="ghn-title">Git Notes</span>
+      ${formatLabel ? `<span class="ghn-format-badge">${formatLabel}</span>` : ""}
+      <span class="ghn-ref">${escapeHtml(note.ref)}</span>
+      ${format !== "plain" ? `<button class="ghn-toggle-raw" title="Toggle raw view">${codeIcon()}</button>` : ""}
+    `;
+    box.appendChild(header);
+
+    // Rendered body (sandboxed iframe for non-plain, direct pre for plain)
+    const renderedBody = document.createElement("div");
+    renderedBody.className = "ghn-body ghn-rendered";
+    if (format !== "plain") {
+      const iframe = createSandboxedIframe(note.content, format);
+      renderedBody.appendChild(iframe);
+    } else {
+      const pre = document.createElement("pre");
+      pre.className = "ghn-content";
+      pre.textContent = note.content;
+      renderedBody.appendChild(pre);
+    }
+    box.appendChild(renderedBody);
+
+    // Raw body (always safe — textContent escaping)
+    if (format !== "plain") {
+      const rawBody = document.createElement("div");
+      rawBody.className = "ghn-body ghn-raw";
+      rawBody.hidden = true;
+      const pre = document.createElement("pre");
+      pre.className = "ghn-content";
+      pre.textContent = note.content;
+      rawBody.appendChild(pre);
+      box.appendChild(rawBody);
+
+      // Toggle handler
+      const btn = header.querySelector(".ghn-toggle-raw");
+      btn.addEventListener("click", () => {
+        const showingRaw = !rawBody.hidden;
+        renderedBody.hidden = !showingRaw;
+        rawBody.hidden = showingRaw;
+        btn.classList.toggle("ghn-active", !showingRaw);
+      });
+    }
+
+    container.appendChild(box);
+  }
 }
 
 function showError(container, message) {
