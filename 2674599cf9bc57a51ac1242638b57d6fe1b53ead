@@ -1,0 +1,31 @@
+## Claude Code Prompts
+
+<!-- format:v2 -->
+
+**Session**: dc5fca76-be65-42f8-bc23-e9390efd1aee
+**Slug**: brave-coding-fox
+**Captured**: 2026-02-27T18:52:41Z
+**Branch**: master
+**Model**: claude-opus-4-6
+**Client**: 2.1.59
+**Permission**: accept-edits
+
+### Prompts
+
+**1.** when installed in Chrome I saw this warning: 'background.scripts' requires manifest version of 2 or lower. -> do we care about it?
+
+**2.** commit and push
+
+### Stats
+
+| Metric | Value |
+|--------|-------|
+| Turns | 2 user, 4 assistant |
+| Tokens in | 18,340 |
+| Tokens out | 3,210 |
+| Cache read | 52,100 |
+| Cache write | 4,800 |
+
+### Tools
+
+Edit(1) Bash(3) Read(1)
