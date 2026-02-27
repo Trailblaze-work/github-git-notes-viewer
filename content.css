@@ -138,6 +138,53 @@
   text-decoration: underline;
 }
 
+/* Collapsible body wrapper */
+.ghn-body-wrapper {
+  position: relative;
+  max-height: 300px;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.ghn-body-wrapper.ghn-expanded {
+  max-height: none;
+}
+
+.ghn-body-wrapper.ghn-truncated::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--bgColor-default, #0d1117)
+  );
+  pointer-events: none;
+}
+
+.ghn-show-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  border-top: 1px solid var(--borderColor-default, #30363d);
+  background: var(--bgColor-muted, #161b22);
+  color: var(--fgColor-accent, #58a6ff);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ghn-show-more:hover {
+  background: var(--bgColor-default, #0d1117);
+}
+
 /* Rendered markdown */
 .ghn-markdown {
   font-size: 14px;

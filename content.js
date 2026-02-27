@@ -86,60 +86,71 @@ async function fetchNotesTreeEntries(owner, repo, noteRef) {
   return data?.payload?.tree?.items || null;
 }
 
+// Get stored PAT (if configured) for private repo fallback
+let _cachedToken = undefined;
+async function getStoredToken() {
+  if (_cachedToken !== undefined) return _cachedToken;
+  try {
+    const { githubToken } = await browser.storage.local.get("githubToken");
+    _cachedToken = githubToken || null;
+  } catch {
+    _cachedToken = null;
+  }
+  return _cachedToken;
+}
+
 // Fetch note content for a specific commit SHA
 async function fetchNoteContent(owner, repo, noteRef, commitSha) {
   const branchName = noteRef.replace(/^refs\//, "");
-
-  // Fetch raw note content. Try github.com/raw first (private repo support via
-  // signed redirect), then raw.githubusercontent.com with cache-bust param.
   const cacheBust = `_=${Date.now()}`;
-  const urls = [
-    `/${owner}/${repo}/raw/${branchName}/${commitSha}`,
-    `https://raw.githubusercontent.com/${owner}/${repo}/${branchName}/${commitSha}?${cacheBust}`,
+
+  // Build candidate paths: direct and fanout
+  const paths = [
+    `${branchName}/${commitSha}`,
+    `${branchName}/${commitSha.slice(0, 2)}/${commitSha.slice(2)}`,
   ];
 
-  for (const url of urls) {
+  // Strategy 1: raw.githubusercontent.com without auth (works for public repos)
+  for (const path of paths) {
     try {
-      const res = await fetch(url, {
-        credentials: "same-origin",
-        redirect: "follow",
-      });
-      if (res.ok) {
-        return await res.text();
-      }
+      const url = `https://raw.githubusercontent.com/${owner}/${repo}/${path}?${cacheBust}`;
+      const res = await fetch(url);
+      if (res.ok) return await res.text();
     } catch {
       continue;
     }
   }
 
-  // Handle fanout: first 2 chars of SHA as directory, remaining 38 as filename
-  const prefix = commitSha.slice(0, 2);
-  const suffix = commitSha.slice(2);
-  const fanoutUrls = [
-    `/${owner}/${repo}/raw/${branchName}/${prefix}/${suffix}`,
-    `https://raw.githubusercontent.com/${owner}/${repo}/${branchName}/${prefix}/${suffix}?${cacheBust}`,
-  ];
-
-  for (const url of fanoutUrls) {
-    try {
-      const res = await fetch(url, {
-        credentials: "same-origin",
-        redirect: "follow",
-      });
-      if (res.ok) {
-        return await res.text();
+  // Strategy 2: raw.githubusercontent.com with PAT (needed for private repos)
+  const token = await getStoredToken();
+  if (token) {
+    for (const path of paths) {
+      try {
+        const url = `https://raw.githubusercontent.com/${owner}/${repo}/${path}?${cacheBust}`;
+        const res = await fetch(url, {
+          headers: { Authorization: `token ${token}` },
+        });
+        if (res.ok) return await res.text();
+      } catch {
+        continue;
       }
-    } catch {
-      continue;
     }
   }
 
   return null;
 }
 
-// Fetch git note, resolving the full commit SHA if needed
+// Fetch git note, resolving the full commit SHA if needed.
+// Returns { content, needsToken } or null.
 async function fetchGitNote(owner, repo, noteRef, commitSha) {
-  // First, check if the notes ref exists by fetching the tree
+  // Strategy 1: Try fetching the note content directly (works even when
+  // the tree endpoint doesn't handle the ref). Tries the commit SHA as-is,
+  // then with fanout (ab/cdef...) layout.
+  const directContent = await fetchNoteContent(owner, repo, noteRef, commitSha);
+  if (directContent !== null) return { content: directContent };
+
+  // Strategy 2: Use the JSON tree endpoint to find the full SHA (handles
+  // abbreviated commit SHAs in the URL) and fanout directories.
   const entries = await fetchNotesTreeEntries(owner, repo, noteRef);
   if (!entries) return null;
 
@@ -149,8 +160,11 @@ async function fetchGitNote(owner, repo, noteRef, commitSha) {
   );
 
   if (match && match.contentType === "file") {
-    // Direct match — fetch the note content using the full SHA from the tree
-    return await fetchNoteContent(owner, repo, noteRef, match.name);
+    const content = await fetchNoteContent(owner, repo, noteRef, match.name);
+    if (content !== null) return { content };
+    // Tree shows a note exists but we can't fetch content — likely a private repo
+    // without a PAT configured.
+    return { content: null, needsToken: true };
   }
 
   // Check fanout: entry might be a directory named with first 2 chars of our SHA
@@ -159,7 +173,6 @@ async function fetchGitNote(owner, repo, noteRef, commitSha) {
     (e) => e.name === prefix && e.contentType === "directory"
   );
   if (fanoutDir) {
-    // Fetch the fanout subtree
     const branchName = noteRef.replace(/^refs\//, "");
     const subRes = await fetch(`/${owner}/${repo}/tree/${branchName}/${prefix}`, {
       headers: {
@@ -176,12 +189,14 @@ async function fetchGitNote(owner, repo, noteRef, commitSha) {
         (e) => e.name === suffix || e.name.startsWith(suffix)
       );
       if (subMatch) {
-        return await fetchNoteContent(
+        const content = await fetchNoteContent(
           owner,
           repo,
           noteRef,
           `${prefix}/${subMatch.name}`
         );
+        if (content !== null) return { content };
+        return { content: null, needsToken: true };
       }
     }
   }
@@ -240,78 +255,99 @@ function detectFormat(content) {
 }
 
 // --- Sandboxed rendering ---
-// All rendered content goes into a sandboxed iframe to prevent XSS.
-// sandbox="allow-same-origin" means NO scripts execute, but parent can
-// access the iframe DOM for height auto-sizing.
+// Rendered content goes into a sandboxed iframe to prevent XSS.
+// sandbox="allow-scripts" WITHOUT allow-same-origin gives the iframe a
+// unique opaque origin — it cannot access github.com cookies or DOM.
 
-function getGitHubStylesheetLinks() {
-  return [...document.querySelectorAll('link[rel="stylesheet"]')]
-    .map((link) => link.href)
-    .filter((href) => href.includes("github"))
-    .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">`)
-    .join("\n");
-}
-
-function getThemeAttributes() {
+function getComputedCssVars() {
   const root = document.documentElement;
-  return [
-    "data-color-mode",
-    "data-light-theme",
-    "data-dark-theme",
-  ]
-    .map((attr) => {
-      const val = root.getAttribute(attr);
-      return val ? `${attr}="${escapeHtml(val)}"` : "";
-    })
-    .filter(Boolean)
-    .join(" ");
+  const style = getComputedStyle(root);
+  const vars = {
+    fgDefault: style.getPropertyValue("--fgColor-default").trim() || "#e6edf3",
+    fgMuted: style.getPropertyValue("--fgColor-muted").trim() || "#8b949e",
+    fgAccent: style.getPropertyValue("--fgColor-accent").trim() || "#58a6ff",
+    bgDefault: style.getPropertyValue("--bgColor-default").trim() || "#0d1117",
+    bgMuted: style.getPropertyValue("--bgColor-muted").trim() || "#161b22",
+    borderDefault:
+      style.getPropertyValue("--borderColor-default").trim() || "#30363d",
+  };
+  return vars;
 }
 
 function buildSandboxedHtml(bodyHtml) {
-  const styleLinks = getGitHubStylesheetLinks();
-  const themeAttrs = getThemeAttributes();
+  // Resolve CSS variables from the parent page and inline them so the
+  // sandboxed iframe (opaque origin) doesn't need external stylesheets.
+  const v = getComputedCssVars();
   return `<!doctype html>
-<html ${themeAttrs}>
+<html>
 <head>
 <meta charset="utf-8">
-${styleLinks}
 <style>
 body {
   margin: 0;
   padding: 0;
   background: transparent !important;
-  overflow: hidden;
-}
-.markdown-body {
+  color: ${v.fgDefault};
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+    Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   font-size: 14px;
   line-height: 1.5;
 }
-.markdown-body h2:first-child,
-.markdown-body h3:first-child {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
+/* Markdown body styles (inline, no external GitHub stylesheets) */
+.markdown-body { font-size: 14px; line-height: 1.6; color: ${v.fgDefault}; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  margin-top: 24px; margin-bottom: 16px; font-weight: 600; line-height: 1.25;
 }
-.markdown-body table { font-size: 13px; }
-pre.ghn-plain {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+.markdown-body h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 1px solid ${v.borderDefault}; }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: .3em; border-bottom: 1px solid ${v.borderDefault}; }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h2:first-child, .markdown-body h3:first-child {
+  margin-top: 0; padding-top: 0; border-top: none;
+}
+.markdown-body p { margin-top: 0; margin-bottom: 16px; }
+.markdown-body a { color: ${v.fgAccent}; text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body ul, .markdown-body ol { padding-left: 2em; margin-top: 0; margin-bottom: 16px; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body code {
+  padding: .2em .4em; margin: 0; font-size: 85%; white-space: break-spaces;
+  background: ${v.bgMuted}; border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--fgColor-default, #e6edf3);
 }
-.ghn-yaml-key { color: var(--fgColor-accent, #58a6ff); }
+.markdown-body pre { padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45;
+  background: ${v.bgMuted}; border-radius: 6px; margin-bottom: 16px; }
+.markdown-body pre code { padding: 0; background: transparent; border-radius: 0; font-size: 100%; }
+.markdown-body blockquote { margin: 0 0 16px 0; padding: 0 1em;
+  color: ${v.fgMuted}; border-left: .25em solid ${v.borderDefault}; }
+.markdown-body hr { height: .25em; padding: 0; margin: 24px 0;
+  background: ${v.borderDefault}; border: 0; }
+.markdown-body table { border-spacing: 0; border-collapse: collapse; margin-bottom: 16px;
+  width: max-content; max-width: 100%; overflow: auto; font-size: 13px; }
+.markdown-body th, .markdown-body td { padding: 6px 13px;
+  border: 1px solid ${v.borderDefault}; }
+.markdown-body th { font-weight: 600; background: ${v.bgMuted}; }
+.markdown-body tr:nth-child(2n) { background: ${v.bgMuted}; }
+.markdown-body img { max-width: 100%; }
+
+pre.ghn-plain {
+  margin: 0; white-space: pre-wrap; word-wrap: break-word;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px; line-height: 1.5; color: ${v.fgDefault};
+}
+.ghn-yaml-key { color: ${v.fgAccent}; }
 </style>
 </head>
 <body>${bodyHtml}</body>
 <script>
 // Report height to parent for auto-sizing (runs in unique origin, no access to github.com)
 function reportHeight() {
-  window.parent.postMessage({ type: 'ghn-resize', height: document.body.scrollHeight }, '*');
+  var h = document.documentElement.scrollHeight;
+  window.parent.postMessage({ type: 'ghn-resize', height: h }, '*');
 }
 new ResizeObserver(reportHeight).observe(document.body);
+window.addEventListener('load', reportHeight);
 reportHeight();
 </script>
 </html>`;
@@ -387,12 +423,16 @@ function createSandboxedIframe(content, format) {
 // Listen for height reports from sandboxed iframes
 window.addEventListener("message", (e) => {
   if (e.data?.type === "ghn-resize" && typeof e.data.height === "number") {
-    // Find the iframe that sent this message
     const container = document.getElementById(CONTAINER_ID);
     if (!container) return;
     for (const iframe of container.querySelectorAll("iframe")) {
       if (iframe.contentWindow === e.source) {
         iframe.style.height = e.data.height + "px";
+        // Trigger truncation check on the wrapper
+        const wrapper = iframe.closest(".ghn-body-wrapper");
+        if (wrapper?._ghnCheckTruncation) {
+          wrapper._ghnCheckTruncation();
+        }
         break;
       }
     }
@@ -414,6 +454,8 @@ function showLoading(container) {
     </div>
   `;
 }
+
+const COLLAPSE_HEIGHT = 300; // px — notes taller than this get collapsed
 
 function showNotes(container, notes) {
   if (!notes || notes.length === 0) {
@@ -443,6 +485,10 @@ function showNotes(container, notes) {
     `;
     box.appendChild(header);
 
+    // Collapsible body wrapper
+    const wrapper = document.createElement("div");
+    wrapper.className = "ghn-body-wrapper";
+
     // Rendered body (sandboxed iframe for non-plain, direct pre for plain)
     const renderedBody = document.createElement("div");
     renderedBody.className = "ghn-body ghn-rendered";
@@ -455,7 +501,7 @@ function showNotes(container, notes) {
       pre.textContent = note.content;
       renderedBody.appendChild(pre);
     }
-    box.appendChild(renderedBody);
+    wrapper.appendChild(renderedBody);
 
     // Raw body (always safe — textContent escaping)
     if (format !== "plain") {
@@ -466,7 +512,7 @@ function showNotes(container, notes) {
       pre.className = "ghn-content";
       pre.textContent = note.content;
       rawBody.appendChild(pre);
-      box.appendChild(rawBody);
+      wrapper.appendChild(rawBody);
 
       // Toggle handler
       const btn = header.querySelector(".ghn-toggle-raw");
@@ -478,8 +524,72 @@ function showNotes(container, notes) {
       });
     }
 
+    box.appendChild(wrapper);
+
+    // "Show more" button — added after the wrapper, shown if content overflows
+    const showMoreBtn = document.createElement("button");
+    showMoreBtn.className = "ghn-show-more";
+    showMoreBtn.textContent = "Show full note";
+    showMoreBtn.hidden = true;
+    showMoreBtn.addEventListener("click", () => {
+      const expanded = wrapper.classList.toggle("ghn-expanded");
+      wrapper.classList.toggle("ghn-truncated", !expanded);
+      showMoreBtn.textContent = expanded
+        ? "Collapse note"
+        : "Show full note";
+    });
+    box.appendChild(showMoreBtn);
+
+    // Check whether truncation is needed after iframe height is known
+    const checkTruncation = () => {
+      const contentHeight = wrapper.scrollHeight;
+      if (contentHeight > COLLAPSE_HEIGHT) {
+        wrapper.classList.add("ghn-truncated");
+        showMoreBtn.hidden = false;
+      }
+    };
+    // For iframes, defer until the height message arrives; for plain, check immediately
+    if (format !== "plain") {
+      // Will be called via postMessage handler after iframe reports height
+      wrapper.dataset.ghnPendingTruncationCheck = "1";
+    } else {
+      requestAnimationFrame(checkTruncation);
+    }
+    // Store the checker so the postMessage handler can invoke it
+    wrapper._ghnCheckTruncation = checkTruncation;
+
     container.appendChild(box);
   }
+}
+
+function showTokenNeeded(container) {
+  container.innerHTML = "";
+  const box = document.createElement("div");
+  box.className = "ghn-box ghn-error";
+
+  const header = document.createElement("div");
+  header.className = "ghn-header";
+  header.innerHTML = `
+    <span class="ghn-icon">${noteIcon()}</span>
+    <span class="ghn-title">Git Notes</span>
+  `;
+  box.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "ghn-body";
+  body.textContent = "Notes found but can't be read — ";
+  const link = document.createElement("a");
+  link.className = "ghn-settings-link";
+  link.textContent = "configure a GitHub token";
+  link.addEventListener("click", (e) => {
+    e.preventDefault();
+    browser.runtime.sendMessage({ type: "OPEN_OPTIONS" });
+  });
+  body.appendChild(link);
+  body.appendChild(document.createTextNode(" for private repo support."));
+  box.appendChild(body);
+
+  container.appendChild(box);
 }
 
 function showError(container, message) {
@@ -537,17 +647,20 @@ async function processCommitPage() {
   try {
     const noteRefs = await getNoteRefs();
     const results = [];
+    let needsToken = false;
 
     for (const ref of noteRefs) {
       try {
-        const content = await fetchGitNote(
+        const result = await fetchGitNote(
           commit.owner,
           commit.repo,
           ref,
           commit.commitSha
         );
-        if (content !== null) {
-          results.push({ ref, content });
+        if (result && result.content !== null) {
+          results.push({ ref, content: result.content });
+        } else if (result && result.needsToken) {
+          needsToken = true;
         }
       } catch {
         // Skip refs that error (e.g., ref doesn't exist)
@@ -555,7 +668,13 @@ async function processCommitPage() {
       }
     }
 
-    showNotes(container, results);
+    if (results.length > 0) {
+      showNotes(container, results);
+    } else if (needsToken) {
+      showTokenNeeded(container);
+    } else {
+      removeExisting();
+    }
   } catch (err) {
     showError(container, err.message || "Error loading notes");
   }

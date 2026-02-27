@@ -178,6 +178,11 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     getNoteRefs().then(sendResponse);
     return true;
   }
+
+  if (message.type === "OPEN_OPTIONS") {
+    browser.runtime.openOptionsPage();
+    return false;
+  }
 });
 
 async function handleFetchGitNote({ owner, repo, commitSha }) {
