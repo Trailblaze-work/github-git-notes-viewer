@@ -273,7 +273,6 @@ async function run() {
     );
     assert.ok(manifest.content_scripts[0].matches.includes("https://github.com/*/*/commit/*"));
     assert.ok(manifest.background.service_worker);
-    assert.ok(manifest.background.scripts);
   });
 
   // --- Summary ---

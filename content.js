@@ -17,8 +17,9 @@ function removeExisting() {
 }
 
 function findInjectionPoint() {
-  // Try multiple selectors in order of preference
+  // Try multiple selectors in order of preference (GitHub's DOM changes frequently)
   const selectors = [
+    "#diff-content-parent",
     "#diff-stats",
     ".js-diff-progressive-container",
     "#files",
@@ -27,7 +28,7 @@ function findInjectionPoint() {
   ];
   for (const sel of selectors) {
     const el = document.querySelector(sel);
-    if (el) return el;
+    if (el) return { el, mode: sel === "#diff-content-parent" ? "prepend" : "before" };
   }
   return null;
 }
@@ -125,6 +126,38 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function injectContainer(injection) {
+  const container = createContainer();
+  if (injection.mode === "prepend") {
+    injection.el.prepend(container);
+  } else {
+    injection.el.parentNode.insertBefore(container, injection.el);
+  }
+  return container;
+}
+
+// Wait for the injection point to appear (GitHub loads diff content async via Turbo)
+function waitForInjectionPoint(timeout = 5000) {
+  return new Promise((resolve) => {
+    const injection = findInjectionPoint();
+    if (injection) return resolve(injection);
+
+    const obs = new MutationObserver(() => {
+      const injection = findInjectionPoint();
+      if (injection) {
+        obs.disconnect();
+        resolve(injection);
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+
+    setTimeout(() => {
+      obs.disconnect();
+      resolve(null);
+    }, timeout);
+  });
+}
+
 async function processCommitPage() {
   const url = location.href;
   if (url === lastProcessedUrl) return;
@@ -138,11 +171,13 @@ async function processCommitPage() {
 
   removeExisting();
 
-  const injectionPoint = findInjectionPoint();
-  if (!injectionPoint) return;
+  const injection = await waitForInjectionPoint();
+  if (!injection) return;
 
-  const container = createContainer();
-  injectionPoint.parentNode.insertBefore(container, injectionPoint);
+  // Check we haven't navigated away while waiting
+  if (location.href !== url) return;
+
+  const container = injectContainer(injection);
   showLoading(container);
 
   try {
