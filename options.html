@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>GitHub Git Notes Viewer — Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>GitHub Git Notes Viewer</h1>
+
+      <section>
+        <h2>GitHub Personal Access Token</h2>
+        <p class="hint">
+          Required to read git notes via the GitHub API. Create a token at
+          <a
+            href="https://github.com/settings/tokens"
+            target="_blank"
+            rel="noopener"
+            >github.com/settings/tokens</a
+          >
+          with <code>repo</code> scope (or <code>public_repo</code> for public
+          repos only).
+        </p>
+        <div class="field-row">
+          <input
+            type="password"
+            id="token"
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+            spellcheck="false"
+          />
+          <button id="toggle-visibility" title="Show/hide token">Show</button>
+        </div>
+        <div class="button-row">
+          <button id="save-token" class="primary">Save Token</button>
+          <button id="validate-token">Validate</button>
+        </div>
+        <div id="token-status" class="status" hidden></div>
+      </section>
+
+      <section>
+        <h2>Note Refs</h2>
+        <p class="hint">
+          Git note refs to check, one per line. Default is
+          <code>refs/notes/commits</code>.
+        </p>
+        <textarea id="note-refs" rows="4" spellcheck="false">
+refs/notes/commits</textarea
+        >
+        <div class="button-row">
+          <button id="save-refs" class="primary">Save Refs</button>
+        </div>
+        <div id="refs-status" class="status" hidden></div>
+      </section>
+
+      <section>
+        <h2>Cache</h2>
+        <p class="hint">
+          Notes trees are cached in memory for 5 minutes to reduce API calls.
+        </p>
+        <div class="button-row">
+          <button id="clear-cache">Clear Cache</button>
+        </div>
+        <div id="cache-status" class="status" hidden></div>
+      </section>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,98 @@
+#ghn-notes-container {
+  margin: 16px 0;
+}
+
+.ghn-box {
+  border: 1px solid var(--borderColor-default, #30363d);
+  border-radius: 6px;
+  background: var(--bgColor-default, #0d1117);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.ghn-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bgColor-muted, #161b22);
+  border-bottom: 1px solid var(--borderColor-default, #30363d);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fgColor-default, #e6edf3);
+}
+
+.ghn-octicon {
+  flex-shrink: 0;
+}
+
+.ghn-title {
+  flex-shrink: 0;
+}
+
+.ghn-ref {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--fgColor-muted, #8b949e);
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  margin-left: auto;
+}
+
+.ghn-body {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--fgColor-default, #e6edf3);
+}
+
+.ghn-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Loading state */
+.ghn-loading .ghn-body {
+  color: var(--fgColor-muted, #8b949e);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ghn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--borderColor-default, #30363d);
+  border-top-color: var(--fgColor-accent, #58a6ff);
+  border-radius: 50%;
+  animation: ghn-spin 0.6s linear infinite;
+}
+
+@keyframes ghn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error state */
+.ghn-error .ghn-body {
+  color: var(--fgColor-danger, #f85149);
+  font-size: 13px;
+}
+
+.ghn-settings-link {
+  color: var(--fgColor-accent, #58a6ff);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ghn-settings-link:hover {
+  text-decoration: underline;
+}
