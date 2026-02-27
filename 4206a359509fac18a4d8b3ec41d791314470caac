@@ -1,0 +1,55 @@
+## Claude Code Prompts
+
+<!-- format:v2 -->
+
+**Session**: 824b3ca6-1cf6-403a-830a-8b15909cf2ea
+**Slug**: clever-soaring-elephant
+**Captured**: 2026-02-27T21:30:44Z
+**Branch**: main
+**Model**: claude-opus-4-6
+**Client**: 2.1.62
+**Permission**: accept-edits
+
+### Prompts
+
+**1.** How can we make this plugin easy to install without developer mode? where does it need to be submitted? can our CI submit it? (and updates)
+
+**2.** can you take care of it all and just ask me for the manual steps you can't do yourself?
+
+**3.** [accept-edits] npm run build
+
+**4.** [Request interrupted by user for tool use]
+
+**5.** [accept-edits] I need a 128x128 store icon and a 1280x800 screenshot for the Chrome web store. Make the icon a resized version of our logo with a black background /Users/gilles/Documents/trailblaze/logo and make a screenshot with a headless browser of the plugin in action at that resolution
+
+**6.** [accept-edits] oauth client id: 858297914722-8rhehsplk07eo9nbnc4vu9nvidjjdbtk.apps.googleusercontent.com
+
+**7.** [accept-edits] CHROME_EXTENSION_ID is bcfpccehindpaimfanpnonhjihmkhhjh I thibk
+
+**8.** [accept-edits] A justification for host permission use is required. This can be entered on the Privacy practices tab.
+A justification for remote code use is required. This can be entered on the Privacy practices tab.
+A justification for storage is required. This can be entered on the Privacy practices tab.
+The single purpose description is required. This can be entered on the Privacy practices tab.
+To publish your item, you must certify that your data usage complies with our Developer Program Policies. You can certify this on the Privacy practices tab of the item edit page. please give me test for all of these
+
+**9.** [accept-edits] [image]
+
+**10.** [Image source: /Users/gilles/Desktop/Screenshot 2026-02-27 at 22.27.42.jpeg]
+
+**11.** [accept-edits] we need a privacy policy, so we can link its URL in the form
+
+**12.** [accept-edits] yes
+
+### Stats
+
+| Metric | Value |
+|--------|-------|
+| Turns | 68 user, 92 assistant |
+| Tokens in | 146 |
+| Tokens out | 13,333 |
+| Cache read | 3,452,974 |
+| Cache write | 99,189 |
+
+### Tools
+
+Bash(15) Read(11) TaskUpdate(9) Glob(7) Write(5) Edit(4) TaskCreate(4) Task(1)
