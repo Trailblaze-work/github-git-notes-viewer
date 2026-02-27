@@ -5,19 +5,13 @@ const toggleBtn = document.getElementById("toggle-visibility");
 const saveTokenBtn = document.getElementById("save-token");
 const validateBtn = document.getElementById("validate-token");
 const tokenStatus = document.getElementById("token-status");
-const noteRefsInput = document.getElementById("note-refs");
-const saveRefsBtn = document.getElementById("save-refs");
-const refsStatus = document.getElementById("refs-status");
 const clearCacheBtn = document.getElementById("clear-cache");
 const cacheStatus = document.getElementById("cache-status");
 
 // Load saved settings
-browser.storage.local.get(["githubToken", "noteRefs"]).then((data) => {
+browser.storage.local.get(["githubToken"]).then((data) => {
   if (data.githubToken) {
     tokenInput.value = data.githubToken;
-  }
-  if (data.noteRefs && data.noteRefs.length > 0) {
-    noteRefsInput.value = data.noteRefs.join("\n");
   }
 });
 
@@ -59,20 +53,6 @@ validateBtn.addEventListener("click", async () => {
       "error"
     );
   }
-});
-
-// Save note refs
-saveRefsBtn.addEventListener("click", async () => {
-  const refs = noteRefsInput.value
-    .split("\n")
-    .map((r) => r.trim())
-    .filter((r) => r.length > 0);
-  await browser.storage.local.set({ noteRefs: refs });
-  showStatus(
-    refsStatus,
-    `Saved ${refs.length} ref${refs.length !== 1 ? "s" : ""}.`,
-    "success"
-  );
 });
 
 // Clear cache

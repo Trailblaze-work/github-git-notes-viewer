@@ -1,7 +1,6 @@
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
 const authStatus = document.getElementById("auth-status");
-const refsInfo = document.getElementById("refs-info");
 const settingsBtn = document.getElementById("open-settings");
 
 async function init() {
@@ -20,21 +19,6 @@ async function init() {
       : "No token configured";
   }
 
-  // Show note refs (use textContent to avoid XSS from stored values)
-  const refs = await browser.runtime.sendMessage({ type: "GET_NOTE_REFS" });
-  if (refs && refs.length > 0) {
-    refsInfo.textContent = "";
-    const label = document.createElement("span");
-    label.className = "refs-label";
-    label.textContent = "Checking refs:";
-    refsInfo.appendChild(label);
-    for (const r of refs) {
-      const code = document.createElement("code");
-      code.textContent = r;
-      refsInfo.appendChild(document.createTextNode(" "));
-      refsInfo.appendChild(code);
-    }
-  }
 }
 
 settingsBtn.addEventListener("click", () => {
