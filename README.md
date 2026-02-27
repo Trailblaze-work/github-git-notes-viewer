@@ -29,6 +29,20 @@ Git notes are a powerful but underused Git feature -- they let you attach metada
 
 ## Install
 
+<p>
+  <a href="https://chromewebstore.google.com/detail/github-git-notes-viewer/bcfpccehindpaimfanpnonhjihmkhhjh">
+    <img alt="Chrome Web Store" src="https://img.shields.io/badge/Chrome-141e24.svg?&style=for-the-badge&logo=google-chrome&logoColor=white">
+  </a>
+  <a href="https://addons.mozilla.org/firefox/addon/github-git-notes-viewer/">
+    <img alt="Firefox Add-ons" src="https://img.shields.io/badge/Firefox-141e24.svg?&style=for-the-badge&logo=firefox-browser&logoColor=white">
+  </a>
+  <a href="https://chromewebstore.google.com/detail/github-git-notes-viewer/bcfpccehindpaimfanpnonhjihmkhhjh">
+    <img alt="Edge" src="https://img.shields.io/badge/Edge-141e24.svg?&style=for-the-badge&logo=microsoft-edge&logoColor=white">
+  </a>
+</p>
+
+Also available via developer sideloading:
+
 1. Clone this repository
 2. **Chrome/Edge**: Go to `chrome://extensions`, enable "Developer mode", click "Load unpacked", select this directory
 3. **Firefox**: Go to `about:debugging#/runtime/this-firefox`, click "Load Temporary Add-on", select `manifest.json`
