@@ -12,15 +12,14 @@
       <section>
         <h2>GitHub Personal Access Token</h2>
         <p class="hint">
-          Required to read git notes via the GitHub API. Create a token at
+          Only needed for <strong>private repos</strong>. Public repos work without a token.<br>
           <a
-            href="https://github.com/settings/tokens"
+            href="https://github.com/settings/tokens/new?scopes=repo&description=Git+Notes+Viewer"
             target="_blank"
             rel="noopener"
-            >github.com/settings/tokens</a
+            >Create a token</a
           >
-          with <code>repo</code> scope (or <code>public_repo</code> for public
-          repos only).
+          with the <code>repo</code> scope (full access to private repositories).
         </p>
         <div class="field-row">
           <input
@@ -39,13 +38,13 @@
       </section>
 
       <section>
-        <h2>Note Refs</h2>
+        <h2>Additional Note Refs</h2>
         <p class="hint">
-          Git note refs to check, one per line. Default is
-          <code>refs/notes/commits</code>.
+          Extra refs to check, one per line. The extension already auto-discovers
+          refs and always checks <code>refs/notes/commits</code> and
+          <code>refs/notes/claude-prompt-trail</code>.
         </p>
-        <textarea id="note-refs" rows="4" spellcheck="false">
-refs/notes/commits</textarea
+        <textarea id="note-refs" rows="3" spellcheck="false" placeholder="refs/notes/custom-ref"></textarea
         >
         <div class="button-row">
           <button id="save-refs" class="primary">Save Refs</button>
