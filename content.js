@@ -194,15 +194,51 @@ async function fetchGitNote(owner, repo, noteRef, commitSha) {
   return null;
 }
 
-// Get configured note refs
-async function getNoteRefs() {
+// Common note ref names to always try
+const DEFAULT_NOTE_REFS = [
+  "refs/notes/commits",
+  "refs/notes/claude-prompt-trail",
+];
+
+// Auto-discover note refs via GitHub API (works without auth for public repos)
+async function discoverNoteRefs(owner, repo) {
+  try {
+    const headers = { Accept: "application/vnd.github+json" };
+    const token = await getStoredToken();
+    if (token) headers.Authorization = `token ${token}`;
+
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/matching-refs/notes`,
+      { headers }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      return data.map((r) => r.ref).filter((r) => r.startsWith("refs/notes/"));
+    }
+  } catch {
+    // API unavailable — fall back to defaults
+  }
+  return [];
+}
+
+// Get note refs: auto-discovered + defaults + user-configured
+async function getNoteRefs(owner, repo) {
+  const refs = new Set(DEFAULT_NOTE_REFS);
+
+  // Auto-discover from API
+  const discovered = await discoverNoteRefs(owner, repo);
+  for (const r of discovered) refs.add(r);
+
+  // Add user-configured refs
   try {
     const { noteRefs } = await browser.storage.local.get("noteRefs");
-    if (noteRefs && noteRefs.length > 0) return noteRefs;
+    if (noteRefs && noteRefs.length > 0) {
+      for (const r of noteRefs) refs.add(r);
+    }
   } catch {
     // storage might not be available
   }
-  return ["refs/notes/commits"];
+  return [...refs];
 }
 
 // --- Format detection ---
@@ -474,7 +510,7 @@ async function processCommitPage() {
   showLoading(container);
 
   try {
-    const noteRefs = await getNoteRefs();
+    const noteRefs = await getNoteRefs(commit.owner, commit.repo);
     const results = [];
     let needsToken = false;
 
