@@ -120,7 +120,7 @@ async function fetchNoteContent(owner, repo, noteRef, commitSha) {
     }
   }
 
-  // Strategy 2: raw.githubusercontent.com with PAT (needed for private repos)
+  // Strategy 2: raw.githubusercontent.com with PAT
   const token = await getStoredToken();
   if (token) {
     for (const path of paths) {
@@ -128,6 +128,26 @@ async function fetchNoteContent(owner, repo, noteRef, commitSha) {
         const url = `https://raw.githubusercontent.com/${owner}/${repo}/${path}?${cacheBust}`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) return await res.text();
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  // Strategy 3: GitHub Contents API (needed for private repos with fine-grained PATs,
+  // since raw.githubusercontent.com may not resolve notes/* refs)
+  if (token) {
+    const filePaths = [commitSha, `${commitSha.slice(0, 2)}/${commitSha.slice(2)}`];
+    for (const filePath of filePaths) {
+      try {
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${encodeURIComponent(noteRef)}`;
+        const res = await fetch(url, {
+          headers: {
+            Accept: "application/vnd.github.raw+json",
+            Authorization: `Bearer ${token}`,
+          },
         });
         if (res.ok) return await res.text();
       } catch {

@@ -12,7 +12,10 @@ let passed = 0;
 let failed = 0;
 
 async function setup() {
-  browser = await puppeteer.launch({ headless: true });
+  browser = await puppeteer.launch({
+    headless: true,
+    args: process.env.CI ? ["--no-sandbox", "--disable-setuid-sandbox"] : [],
+  });
   page = await browser.newPage();
 }
 
