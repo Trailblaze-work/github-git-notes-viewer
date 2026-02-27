@@ -98,6 +98,59 @@
   line-height: 1.5;
 }
 
+/* Collapsed state: clip the rendered body, show gradient fade */
+.ghn-box.ghn-collapsed > .ghn-body.ghn-rendered {
+  max-height: 500px;
+  overflow: hidden;
+  position: relative;
+}
+
+.ghn-box.ghn-collapsed > .ghn-body.ghn-rendered::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--bgColor-default, #0d1117)
+  );
+  pointer-events: none;
+}
+
+/* Expanded state: remove clipping */
+.ghn-box.ghn-expanded > .ghn-body.ghn-rendered {
+  max-height: none;
+  overflow: visible;
+}
+
+.ghn-box.ghn-expanded > .ghn-body.ghn-rendered::after {
+  display: none;
+}
+
+/* Show more / collapse button */
+.ghn-show-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  border-top: 1px solid var(--borderColor-default, #30363d);
+  background: var(--bgColor-muted, #161b22);
+  color: var(--fgColor-accent, #58a6ff);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ghn-show-more:hover {
+  background: var(--bgColor-default, #0d1117);
+}
+
 /* Loading state */
 .ghn-loading .ghn-body {
   color: var(--fgColor-muted, #8b949e);
@@ -138,76 +191,21 @@
   text-decoration: underline;
 }
 
-/* Collapsible body wrapper */
-.ghn-body-wrapper {
-  position: relative;
-}
-
-.ghn-body-wrapper.ghn-truncated {
-  max-height: 500px;
-  overflow: hidden;
-}
-
-.ghn-body-wrapper.ghn-expanded {
-  max-height: none;
-  overflow: visible;
-}
-
-.ghn-body-wrapper.ghn-truncated::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 80px;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    var(--bgColor-default, #0d1117)
-  );
-  pointer-events: none;
-}
-
-.ghn-show-more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px 16px;
-  border: none;
-  border-top: 1px solid var(--borderColor-default, #30363d);
-  background: var(--bgColor-muted, #161b22);
-  color: var(--fgColor-accent, #58a6ff);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.ghn-show-more:hover {
-  background: var(--bgColor-default, #0d1117);
-}
-
-/* Rendered markdown */
-.ghn-markdown {
+/* Rendered markdown — uses GitHub's own markdown-body class with our namespace */
+.ghn-rendered.markdown-body {
   font-size: 14px;
-  padding: 0 !important;
+  line-height: 1.6;
 }
 
-.ghn-markdown h2:first-child,
-.ghn-markdown h3:first-child {
+.ghn-rendered.markdown-body h2:first-child,
+.ghn-rendered.markdown-body h3:first-child {
   margin-top: 0;
   padding-top: 0;
   border-top: none;
 }
 
-.ghn-markdown table {
+.ghn-rendered.markdown-body table {
   font-size: 13px;
-}
-
-/* JSON formatting */
-.ghn-json {
-  font-size: 12px;
 }
 
 /* YAML highlighting */
