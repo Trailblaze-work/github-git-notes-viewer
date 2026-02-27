@@ -412,7 +412,7 @@ function showTokenNeeded(container) {
   link.href = "#";
   link.addEventListener("click", (e) => {
     e.preventDefault();
-    browser.runtime.openOptionsPage();
+    browser.runtime.sendMessage({ type: "OPEN_OPTIONS" });
   });
   body.appendChild(link);
   body.appendChild(document.createTextNode(" for private repo support."));
