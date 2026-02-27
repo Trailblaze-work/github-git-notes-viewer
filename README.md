@@ -17,7 +17,7 @@ Git notes are a powerful but underused Git feature -- they let you attach metada
 ## Features
 
 - **Zero config for public repos** -- uses your GitHub session for note discovery, fetches content from `raw.githubusercontent.com`. Works out of the box.
-- **Private repo support** -- requires a GitHub PAT with `repo` scope (configured in the extension options). GitHub doesn't expose raw note content for private repos through any cookie-authenticated endpoint.
+- **Private repo support** -- requires a GitHub fine-grained PAT with **Contents: Read-only** permission, scoped to the repos you need. GitHub doesn't expose raw note content for private repos through any cookie-authenticated endpoint.
 - **Auto-discovery** -- automatically discovers all note refs in a repo via the GitHub API, plus tries common defaults (`refs/notes/commits`, `refs/notes/claude-prompt-trail`). No need to configure which refs to check.
 - **Auto format detection** -- detects Markdown, JSON, and YAML content and renders it appropriately
 - **Rich rendering** -- Markdown notes are rendered with full GFM support (tables, code blocks, lists, etc.) via [marked](https://github.com/markedjs/marked)
@@ -35,7 +35,7 @@ Git notes are a powerful but underused Git feature -- they let you attach metada
 
 The extension works immediately for **public repos** -- no token needed.
 
-For **private repos**, open the extension options and add a GitHub Personal Access Token with `repo` scope ([create one here](https://github.com/settings/tokens/new?scopes=repo&description=Git+Notes+Viewer)).
+For **private repos**, open the extension options and add a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) scoped to the repos you need with **Contents: Read-only** permission.
 
 ## How It Works
 
@@ -67,7 +67,7 @@ All rendered HTML (from Markdown) is sanitized by **DOMPurify** with a strict al
 
 Open the extension options page to configure:
 
-- **GitHub PAT** -- required for private repos. Create at [github.com/settings/tokens](https://github.com/settings/tokens) with `repo` scope. Not needed for public repos.
+- **GitHub PAT** -- required for private repos. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with **Contents: Read-only** permission. Not needed for public repos.
 - **Additional note refs** -- extra refs to check beyond the auto-discovered ones and defaults (`refs/notes/commits`, `refs/notes/claude-prompt-trail`)
 - **Clear cache** -- flush the in-memory notes tree cache
 
