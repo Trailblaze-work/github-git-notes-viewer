@@ -100,7 +100,7 @@
 
 /* Collapsed state: clip the rendered body, show gradient fade */
 .ghn-box.ghn-collapsed > .ghn-body.ghn-rendered {
-  max-height: 500px;
+  max-height: 800px;
   overflow: hidden;
   position: relative;
 }

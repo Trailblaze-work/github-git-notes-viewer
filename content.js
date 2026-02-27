@@ -2,7 +2,7 @@ if (typeof browser === "undefined") globalThis.browser = chrome;
 
 const CONTAINER_ID = "ghn-notes-container";
 const COMMIT_URL_RE = /^\/([^/]+)\/([^/]+)\/commit\/([0-9a-f]{5,40})$/i;
-const COLLAPSE_HEIGHT = 500; // px — notes taller than this start collapsed
+const COLLAPSE_HEIGHT = 800; // px — notes taller than this start collapsed
 
 let lastProcessedUrl = null;
 let processGeneration = 0;
