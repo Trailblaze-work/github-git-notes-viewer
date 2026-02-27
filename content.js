@@ -5,6 +5,7 @@ const COMMIT_URL_RE = /^\/([^/]+)\/([^/]+)\/commit\/([0-9a-f]{5,40})$/i;
 const COLLAPSE_HEIGHT = 500; // px — notes taller than this start collapsed
 
 let lastProcessedUrl = null;
+let processGeneration = 0;
 
 function parseCommitUrl() {
   const match = location.pathname.match(COMMIT_URL_RE);
@@ -514,6 +515,8 @@ async function processCommitPage() {
   if (url === lastProcessedUrl) return;
   lastProcessedUrl = url;
 
+  const generation = ++processGeneration;
+
   const commit = parseCommitUrl();
   if (!commit) {
     removeExisting();
@@ -522,18 +525,13 @@ async function processCommitPage() {
 
   removeExisting();
 
-  const injection = await waitForInjectionPoint();
-  if (!injection) return;
-  if (location.href !== url) return;
-
-  const container = injectContainer(injection);
-  showLoading(container);
+  // Fetch notes before injecting anything into the page
+  let results = [];
+  let needsToken = false;
+  let fetchError = null;
 
   try {
     const noteRefs = await getNoteRefs(commit.owner, commit.repo);
-    const results = [];
-    let needsToken = false;
-
     for (const ref of noteRefs) {
       try {
         const result = await fetchGitNote(
@@ -548,16 +546,30 @@ async function processCommitPage() {
         continue;
       }
     }
-
-    if (results.length > 0) {
-      showNotes(container, results);
-    } else if (needsToken) {
-      showTokenNeeded(container);
-    } else {
-      removeExisting();
-    }
   } catch (err) {
-    showError(container, err.message || "Error loading notes");
+    fetchError = err;
+  }
+
+  // Bail out if a newer call has started while we were fetching
+  if (generation !== processGeneration) return;
+
+  // Only inject into the page if there's something to show
+  if (results.length === 0 && !needsToken && !fetchError) return;
+  if (location.href !== url) return;
+
+  const injection = await waitForInjectionPoint();
+  if (!injection) return;
+  if (location.href !== url) return;
+
+  removeExisting();
+  const container = injectContainer(injection);
+
+  if (fetchError) {
+    showError(container, fetchError.message || "Error loading notes");
+  } else if (results.length > 0) {
+    showNotes(container, results);
+  } else if (needsToken) {
+    showTokenNeeded(container);
   }
 }
 
