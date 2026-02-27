@@ -269,7 +269,7 @@ async function run() {
     assert.strictEqual(manifest.manifest_version, 3);
     assert.ok(manifest.permissions.includes("storage"));
     assert.ok(
-      manifest.host_permissions.includes("https://api.github.com/*")
+      manifest.host_permissions.includes("https://raw.githubusercontent.com/*")
     );
     assert.ok(manifest.content_scripts[0].matches.includes("https://github.com/*/*/commit/*"));
     assert.ok(manifest.background.service_worker);

@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "description": "Display git notes inline on GitHub commit pages.",
   "permissions": ["storage"],
-  "host_permissions": ["https://api.github.com/*"],
+  "host_permissions": [
+    "https://raw.githubusercontent.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },

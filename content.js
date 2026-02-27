@@ -17,7 +17,6 @@ function removeExisting() {
 }
 
 function findInjectionPoint() {
-  // Try multiple selectors in order of preference (GitHub's DOM changes frequently)
   const selectors = [
     "#diff-content-parent",
     "#diff-stats",
@@ -33,11 +32,174 @@ function findInjectionPoint() {
   return null;
 }
 
-function createContainer() {
+function injectContainer(injection) {
   const container = document.createElement("div");
   container.id = CONTAINER_ID;
+  if (injection.mode === "prepend") {
+    injection.el.prepend(container);
+  } else {
+    injection.el.parentNode.insertBefore(container, injection.el);
+  }
   return container;
 }
+
+function waitForInjectionPoint(timeout = 5000) {
+  return new Promise((resolve) => {
+    const injection = findInjectionPoint();
+    if (injection) return resolve(injection);
+
+    const obs = new MutationObserver(() => {
+      const injection = findInjectionPoint();
+      if (injection) {
+        obs.disconnect();
+        resolve(injection);
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+
+    setTimeout(() => {
+      obs.disconnect();
+      resolve(null);
+    }, timeout);
+  });
+}
+
+// --- Note fetching (cookie-based, same-origin on github.com) ---
+
+// Fetch the notes tree from GitHub's JSON endpoint (same-origin, session cookie included)
+async function fetchNotesTreeEntries(owner, repo, noteRef) {
+  // Convert refs/notes/commits → notes/commits (branch name without refs/ prefix)
+  const branchName = noteRef.replace(/^refs\//, "");
+
+  const res = await fetch(`/${owner}/${repo}/tree/${branchName}`, {
+    headers: {
+      Accept: "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    credentials: "same-origin",
+  });
+
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  // data.payload.tree.items = [{ name: "<commit-sha>", path: "<commit-sha>", contentType: "file"|"directory" }]
+  return data?.payload?.tree?.items || null;
+}
+
+// Fetch note content for a specific commit SHA
+async function fetchNoteContent(owner, repo, noteRef, commitSha) {
+  const branchName = noteRef.replace(/^refs\//, "");
+
+  // Try direct fetch from raw.githubusercontent.com (works for public repos)
+  // For private repos, go through github.com/raw which redirects with a signed token
+  const urls = [
+    `https://raw.githubusercontent.com/${owner}/${repo}/${branchName}/${commitSha}`,
+    `/${owner}/${repo}/raw/${branchName}/${commitSha}`,
+  ];
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        credentials: "same-origin",
+        redirect: "follow",
+      });
+      if (res.ok) {
+        return await res.text();
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  // Handle fanout: first 2 chars of SHA as directory, remaining 38 as filename
+  const prefix = commitSha.slice(0, 2);
+  const suffix = commitSha.slice(2);
+  const fanoutUrls = [
+    `https://raw.githubusercontent.com/${owner}/${repo}/${branchName}/${prefix}/${suffix}`,
+    `/${owner}/${repo}/raw/${branchName}/${prefix}/${suffix}`,
+  ];
+
+  for (const url of fanoutUrls) {
+    try {
+      const res = await fetch(url, {
+        credentials: "same-origin",
+        redirect: "follow",
+      });
+      if (res.ok) {
+        return await res.text();
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+// Fetch git note, resolving the full commit SHA if needed
+async function fetchGitNote(owner, repo, noteRef, commitSha) {
+  // First, check if the notes ref exists by fetching the tree
+  const entries = await fetchNotesTreeEntries(owner, repo, noteRef);
+  if (!entries) return null;
+
+  // The commit SHA in the URL might be abbreviated — find the matching entry
+  const match = entries.find(
+    (e) => e.name === commitSha || e.name.startsWith(commitSha)
+  );
+
+  if (match && match.contentType === "file") {
+    // Direct match — fetch the note content using the full SHA from the tree
+    return await fetchNoteContent(owner, repo, noteRef, match.name);
+  }
+
+  // Check fanout: entry might be a directory named with first 2 chars of our SHA
+  const prefix = commitSha.slice(0, 2);
+  const fanoutDir = entries.find(
+    (e) => e.name === prefix && e.contentType === "directory"
+  );
+  if (fanoutDir) {
+    // Fetch the fanout subtree
+    const branchName = noteRef.replace(/^refs\//, "");
+    const subRes = await fetch(`/${owner}/${repo}/tree/${branchName}/${prefix}`, {
+      headers: {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      credentials: "same-origin",
+    });
+    if (subRes.ok) {
+      const subData = await subRes.json();
+      const subEntries = subData?.payload?.tree?.items || [];
+      const suffix = commitSha.slice(2);
+      const subMatch = subEntries.find(
+        (e) => e.name === suffix || e.name.startsWith(suffix)
+      );
+      if (subMatch) {
+        return await fetchNoteContent(
+          owner,
+          repo,
+          noteRef,
+          `${prefix}/${subMatch.name}`
+        );
+      }
+    }
+  }
+
+  return null;
+}
+
+// Get configured note refs
+async function getNoteRefs() {
+  try {
+    const { noteRefs } = await browser.storage.local.get("noteRefs");
+    if (noteRefs && noteRefs.length > 0) return noteRefs;
+  } catch {
+    // storage might not be available
+  }
+  return ["refs/notes/commits"];
+}
+
+// --- UI rendering ---
 
 function showLoading(container) {
   container.innerHTML = `
@@ -77,41 +239,16 @@ function showNotes(container, notes) {
     .join("");
 }
 
-function showError(container, error) {
-  let body;
-  if (error === "no_token") {
-    body = `
-      No GitHub token configured.
-      <a class="ghn-settings-link" href="#">Open settings</a> to add one.
-    `;
-  } else if (error === "auth_error") {
-    body = `
-      Authentication failed. Your token may be invalid or expired.
-      <a class="ghn-settings-link" href="#">Update settings</a>
-    `;
-  } else if (error === "rate_limit") {
-    body = `GitHub API rate limit exceeded. Please wait and try again.`;
-  } else {
-    body = `Error loading notes: ${escapeHtml(error)}`;
-  }
-
+function showError(container, message) {
   container.innerHTML = `
     <div class="ghn-box ghn-error">
       <div class="ghn-header">
         <span class="ghn-icon">${noteIcon()}</span>
         <span class="ghn-title">Git Notes</span>
       </div>
-      <div class="ghn-body">${body}</div>
+      <div class="ghn-body">${escapeHtml(message)}</div>
     </div>
   `;
-
-  // Attach settings link handler
-  container.querySelectorAll(".ghn-settings-link").forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      browser.runtime.sendMessage({ type: "OPEN_OPTIONS" });
-    });
-  });
 }
 
 function noteIcon() {
@@ -126,37 +263,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function injectContainer(injection) {
-  const container = createContainer();
-  if (injection.mode === "prepend") {
-    injection.el.prepend(container);
-  } else {
-    injection.el.parentNode.insertBefore(container, injection.el);
-  }
-  return container;
-}
-
-// Wait for the injection point to appear (GitHub loads diff content async via Turbo)
-function waitForInjectionPoint(timeout = 5000) {
-  return new Promise((resolve) => {
-    const injection = findInjectionPoint();
-    if (injection) return resolve(injection);
-
-    const obs = new MutationObserver(() => {
-      const injection = findInjectionPoint();
-      if (injection) {
-        obs.disconnect();
-        resolve(injection);
-      }
-    });
-    obs.observe(document.body, { childList: true, subtree: true });
-
-    setTimeout(() => {
-      obs.disconnect();
-      resolve(null);
-    }, timeout);
-  });
-}
+// --- Main flow ---
 
 async function processCommitPage() {
   const url = location.href;
@@ -173,37 +280,40 @@ async function processCommitPage() {
 
   const injection = await waitForInjectionPoint();
   if (!injection) return;
-
-  // Check we haven't navigated away while waiting
   if (location.href !== url) return;
 
   const container = injectContainer(injection);
   showLoading(container);
 
   try {
-    const result = await browser.runtime.sendMessage({
-      type: "FETCH_GIT_NOTE",
-      owner: commit.owner,
-      repo: commit.repo,
-      commitSha: commit.commitSha,
-    });
+    const noteRefs = await getNoteRefs();
+    const results = [];
 
-    if (result.error) {
-      showError(container, result.error);
-    } else {
-      showNotes(container, result.notes);
+    for (const ref of noteRefs) {
+      try {
+        const content = await fetchGitNote(
+          commit.owner,
+          commit.repo,
+          ref,
+          commit.commitSha
+        );
+        if (content !== null) {
+          results.push({ ref, content });
+        }
+      } catch {
+        // Skip refs that error (e.g., ref doesn't exist)
+        continue;
+      }
     }
+
+    showNotes(container, results);
   } catch (err) {
-    showError(container, err.message || "Connection error");
+    showError(container, err.message || "Error loading notes");
   }
 }
 
-function init() {
-  processCommitPage();
-}
-
 // 1. Handle initial page load
-init();
+processCommitPage();
 
 // 2. Handle GitHub's Turbo Drive SPA navigation
 document.addEventListener("turbo:load", () => {
