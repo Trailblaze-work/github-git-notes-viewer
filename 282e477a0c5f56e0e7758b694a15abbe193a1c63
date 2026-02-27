@@ -1,0 +1,31 @@
+## Claude Code Prompts
+
+<!-- format:v2 -->
+
+**Session**: dc5fca76-be65-42f8-bc23-e9390efd1aee
+**Slug**: brave-coding-fox
+**Captured**: 2026-02-27T19:05:22Z
+**Branch**: master
+**Model**: claude-opus-4-6
+**Client**: 2.1.59
+**Permission**: accept-edits
+
+### Prompts
+
+**1.** Fix stale note content from CDN cache — prefer github.com/raw over raw.githubusercontent.com
+
+**2.** commit and push
+
+### Stats
+
+| Metric | Value |
+|--------|-------|
+| Turns | 2 user, 3 assistant |
+| Tokens in | 12,480 |
+| Tokens out | 2,150 |
+| Cache read | 41,300 |
+| Cache write | 3,600 |
+
+### Tools
+
+Edit(2) Bash(2) Read(1)
