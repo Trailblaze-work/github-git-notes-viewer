@@ -1,4 +1,4 @@
-name: Publish to Chrome Web Store
+name: Publish to Browser Stores
 
 on:
   release:
@@ -44,3 +44,6 @@ jobs:
           client-id: ${{ secrets.GOOGLE_CLIENT_ID }}
           client-secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           refresh-token: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+
+      - name: Publish to Firefox Add-ons
+        run: npx web-ext sign --source-dir=. --channel=listed --api-key=${{ secrets.AMO_JWT_ISSUER }} --api-secret=${{ secrets.AMO_JWT_SECRET }}

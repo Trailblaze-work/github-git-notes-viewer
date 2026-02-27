@@ -3,6 +3,12 @@
   "name": "GitHub Git Notes Viewer",
   "version": "1.0.0",
   "description": "Display git notes inline on GitHub commit pages.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "git-notes-viewer@trailblaze.work",
+      "strict_min_version": "109.0"
+    }
+  },
   "permissions": ["storage"],
   "host_permissions": [
     "https://raw.githubusercontent.com/*",
