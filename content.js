@@ -90,11 +90,12 @@ async function fetchNotesTreeEntries(owner, repo, noteRef) {
 async function fetchNoteContent(owner, repo, noteRef, commitSha) {
   const branchName = noteRef.replace(/^refs\//, "");
 
-  // Try direct fetch from raw.githubusercontent.com (works for public repos)
-  // For private repos, go through github.com/raw which redirects with a signed token
+  // Fetch raw note content. Try github.com/raw first (private repo support via
+  // signed redirect), then raw.githubusercontent.com with cache-bust param.
+  const cacheBust = `_=${Date.now()}`;
   const urls = [
-    `https://raw.githubusercontent.com/${owner}/${repo}/${branchName}/${commitSha}`,
     `/${owner}/${repo}/raw/${branchName}/${commitSha}`,
+    `https://raw.githubusercontent.com/${owner}/${repo}/${branchName}/${commitSha}?${cacheBust}`,
   ];
 
   for (const url of urls) {
@@ -115,8 +116,8 @@ async function fetchNoteContent(owner, repo, noteRef, commitSha) {
   const prefix = commitSha.slice(0, 2);
   const suffix = commitSha.slice(2);
   const fanoutUrls = [
-    `https://raw.githubusercontent.com/${owner}/${repo}/${branchName}/${prefix}/${suffix}`,
     `/${owner}/${repo}/raw/${branchName}/${prefix}/${suffix}`,
+    `https://raw.githubusercontent.com/${owner}/${repo}/${branchName}/${prefix}/${suffix}?${cacheBust}`,
   ];
 
   for (const url of fanoutUrls) {
