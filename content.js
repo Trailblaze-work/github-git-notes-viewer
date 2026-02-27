@@ -306,6 +306,14 @@ pre.ghn-plain {
 </style>
 </head>
 <body>${bodyHtml}</body>
+<script>
+// Report height to parent for auto-sizing (runs in unique origin, no access to github.com)
+function reportHeight() {
+  window.parent.postMessage({ type: 'ghn-resize', height: document.body.scrollHeight }, '*');
+}
+new ResizeObserver(reportHeight).observe(document.body);
+reportHeight();
+</script>
 </html>`;
 }
 
@@ -313,8 +321,21 @@ function renderContentToHtml(content, format) {
   switch (format) {
     case "markdown":
       if (typeof marked !== "undefined") {
-        const html = marked.parse(content, { breaks: true, gfm: true });
-        return `<div class="markdown-body">${html}</div>`;
+        const rawHtml = marked.parse(content, { breaks: true, gfm: true });
+        // Sanitize to prevent CSS injection, phishing forms, and other HTML abuse
+        const cleanHtml =
+          typeof DOMPurify !== "undefined"
+            ? DOMPurify.sanitize(rawHtml, {
+                ALLOWED_TAGS: [
+                  "h1","h2","h3","h4","h5","h6","p","br","strong","em","del",
+                  "ul","ol","li","a","code","pre","blockquote","table","thead",
+                  "tbody","tr","th","td","img","hr","div","span","sup","sub",
+                ],
+                ALLOWED_ATTR: ["href","src","alt","title","class","id","align"],
+                ALLOW_DATA_ATTR: false,
+              })
+            : escapeHtml(rawHtml);
+        return `<div class="markdown-body">${cleanHtml}</div>`;
       }
       return `<pre class="ghn-plain">${escapeHtml(content)}</pre>`;
 
@@ -350,38 +371,33 @@ function createSandboxedIframe(content, format) {
   const srcdoc = buildSandboxedHtml(bodyHtml);
 
   const iframe = document.createElement("iframe");
-  iframe.sandbox = "allow-same-origin"; // NO scripts, parent can measure height
+  // allow-scripts for the height-reporting postMessage script only.
+  // WITHOUT allow-same-origin, the iframe gets a unique opaque origin —
+  // it cannot access github.com cookies, storage, or DOM even if the
+  // content somehow runs unexpected code.
+  iframe.sandbox = "allow-scripts";
   iframe.srcdoc = srcdoc;
   iframe.style.cssText =
     "width:100%;border:none;overflow:hidden;display:block;min-height:40px;";
   iframe.title = "Git note content";
 
-  // Auto-size height once loaded
-  iframe.addEventListener("load", () => {
-    autoSizeIframe(iframe);
-    // Watch for dynamic resizes (e.g. stylesheet loading)
-    try {
-      const obs = new ResizeObserver(() => autoSizeIframe(iframe));
-      obs.observe(iframe.contentDocument.body);
-    } catch {
-      // Fallback: re-measure after stylesheets likely loaded
-      setTimeout(() => autoSizeIframe(iframe), 500);
-    }
-  });
-
   return iframe;
 }
 
-function autoSizeIframe(iframe) {
-  try {
-    const doc = iframe.contentDocument;
-    if (doc && doc.body) {
-      iframe.style.height = doc.body.scrollHeight + "px";
+// Listen for height reports from sandboxed iframes
+window.addEventListener("message", (e) => {
+  if (e.data?.type === "ghn-resize" && typeof e.data.height === "number") {
+    // Find the iframe that sent this message
+    const container = document.getElementById(CONTAINER_ID);
+    if (!container) return;
+    for (const iframe of container.querySelectorAll("iframe")) {
+      if (iframe.contentWindow === e.source) {
+        iframe.style.height = e.data.height + "px";
+        break;
+      }
     }
-  } catch {
-    // Cross-origin access denied — shouldn't happen with allow-same-origin
   }
-}
+});
 
 // --- UI rendering ---
 

@@ -20,11 +20,20 @@ async function init() {
       : "No token configured";
   }
 
-  // Show note refs
+  // Show note refs (use textContent to avoid XSS from stored values)
   const refs = await browser.runtime.sendMessage({ type: "GET_NOTE_REFS" });
   if (refs && refs.length > 0) {
-    refsInfo.innerHTML = `<span class="refs-label">Checking refs:</span>
-      ${refs.map((r) => `<code>${r}</code>`).join(" ")}`;
+    refsInfo.textContent = "";
+    const label = document.createElement("span");
+    label.className = "refs-label";
+    label.textContent = "Checking refs:";
+    refsInfo.appendChild(label);
+    for (const r of refs) {
+      const code = document.createElement("code");
+      code.textContent = r;
+      refsInfo.appendChild(document.createTextNode(" "));
+      refsInfo.appendChild(code);
+    }
   }
 }
 
